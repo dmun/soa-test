@@ -2,10 +2,11 @@ package main
 
 import "core:fmt"
 import "core:math"
+import "core:math/linalg"
 import rl "vendor:raylib"
 
 GRAVITY :: [2]f32{0, 9.82}
-DAMPENING_FACTOR :: 0.8
+DAMPENING_FACTOR :: 0.3
 
 Particle :: struct {
 	position: [2]f32,
@@ -14,6 +15,15 @@ Particle :: struct {
 	mass:     f32,
 	radius:   f32,
 	color:    rl.Color,
+}
+
+calc_vel :: proc(p: ^Particle, c: ^Particle, cr: f32) -> [2]f32 {
+	ratio := (cr + 1) * c.mass / (p.mass + c.mass)
+	v_diff := p.velocity - c.velocity
+	p_diff := p.position - c.position
+	proj := linalg.projection(v_diff, p_diff)
+
+	return p.velocity - proj * ratio
 }
 
 main :: proc() {
@@ -34,8 +44,7 @@ main :: proc() {
 
 		// input
 		if rl.IsMouseButtonDown(.LEFT) {
-			v := rl.Vector2{10, -5}
-			r := f32(rl.GetRandomValue(5, 10))
+			r := f32(rl.GetRandomValue(10, 10))
 			p := Particle {
 				rl.GetMousePosition(),
 				(0),
@@ -49,7 +58,8 @@ main :: proc() {
 
 		// update
 		for &p in particles {
-			time := rl.GetFrameTime() * 5
+			time := rl.GetFrameTime() * 4
+
 			p.force += p.mass * GRAVITY
 			p.velocity += p.force / p.mass * time
 			p.position += p.velocity * time
@@ -58,32 +68,50 @@ main :: proc() {
 			// for _ in 0 ..< 8 {
 			for &c in particles {
 				if p == c {continue}
+                if linalg.distance(p.position, c.position) > p.radius * 3 {
+                    continue
+                }
 
 				angle := p.position - c.position
 				len := math.abs(rl.Vector2Length(angle))
 				angle = rl.Vector2Normalize(angle)
 				if len <= p.radius + c.radius {
-					p.velocity += angle * (len / p.radius + c.radius) * 0.05
-					c.velocity -= angle * (len / p.radius + c.radius) * 0.05
+					cr := f32(0.8)
+					p1 := calc_vel(&p, &c, cr)
+					c1 := calc_vel(&c, &p, cr)
+
+                    // p1 = p1 if linalg.length(p1) > 1 else p1 * 0.1
+                    // c1 = c1 if linalg.length(c1) > 1 else c1 * 0.1
+
+                    p.velocity = p1
+                    c.velocity = c1
+					// p.velocity += angle * (len / p.radius + c.radius) / p.mass * time * 30
+					// c.velocity -= angle * (len / p.radius + c.radius) / c.mass * time * 30
 					p.position += angle * (p.radius + c.radius - len) / 2
 					c.position -= angle * (p.radius + c.radius - len) / 2
 				}
 			}
 			// }
 
+
 			height := f32(rl.GetScreenHeight())
 			width := f32(rl.GetScreenWidth())
 			if p.position.y > height - p.radius {
 				p.velocity.y *= -1 * DAMPENING_FACTOR
+                p.velocity.x *= 0.5
 				p.position.y = height - p.radius
 			}
 
 			if p.position.x > width - p.radius {
+				// p.position.x = p.radius
+				// p.position.y = 0
 				p.velocity.x *= -1 * DAMPENING_FACTOR
 				p.position.x = width - p.radius
 			}
 
 			if p.position.x < p.radius {
+				// p.position.x = width - p.radius
+				// p.position.y = 0
 				p.velocity.x *= -1 * DAMPENING_FACTOR
 				p.position.x = p.radius
 			}
@@ -92,7 +120,8 @@ main :: proc() {
 		// draw
 		for &p in particles {
 			c := math.clamp(rl.Vector2Length(p.velocity), 0, 100)
-			rl.DrawCircleV(p.position, p.radius, rl.ColorFromHSV(100 - c, 1, 1))
+            color := rl.ColorFromHSV(100 - c, 1, 1)
+			rl.DrawCircleV(p.position, p.radius, color)
 			// rl.DrawRectangleV(p.position, p.radius, rl.BLUE)
 		}
 	}
