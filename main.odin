@@ -5,6 +5,7 @@ import "core:math"
 import rl "vendor:raylib"
 
 GRAVITY :: [2]f32{0, 9.82}
+DAMPENING_FACTOR :: 0.8
 
 Particle :: struct {
 	position: [2]f32,
@@ -55,39 +56,43 @@ main :: proc() {
 			p.force = (0)
 
 			// for _ in 0 ..< 8 {
-				for &c in particles {
-					if p == c {continue}
+			for &c in particles {
+				if p == c {continue}
 
-					angle := p.position - c.position
-					len := math.abs(rl.Vector2Length(angle))
-					angle = rl.Vector2Normalize(angle)
-					if len <= p.radius + c.radius {
-						p.force += angle * (len / p.radius + c.radius)
-						c.force -= angle * (len / p.radius + c.radius)
-						p.position += angle * (p.radius + c.radius - len) / 2
-						c.position -= angle * (p.radius + c.radius - len) / 2
-					}
+				angle := p.position - c.position
+				len := math.abs(rl.Vector2Length(angle))
+				angle = rl.Vector2Normalize(angle)
+				if len <= p.radius + c.radius {
+					p.velocity += angle * (len / p.radius + c.radius) * 0.05
+					c.velocity -= angle * (len / p.radius + c.radius) * 0.05
+					p.position += angle * (p.radius + c.radius - len) / 2
+					c.position -= angle * (p.radius + c.radius - len) / 2
 				}
+			}
 			// }
 
 			height := f32(rl.GetScreenHeight())
 			width := f32(rl.GetScreenWidth())
 			if p.position.y > height - p.radius {
+				p.velocity.y *= -1 * DAMPENING_FACTOR
 				p.position.y = height - p.radius
 			}
 
 			if p.position.x > width - p.radius {
+				p.velocity.x *= -1 * DAMPENING_FACTOR
 				p.position.x = width - p.radius
 			}
 
 			if p.position.x < p.radius {
+				p.velocity.x *= -1 * DAMPENING_FACTOR
 				p.position.x = p.radius
 			}
 		}
 
 		// draw
 		for &p in particles {
-			rl.DrawCircleV(p.position, p.radius, p.color)
+			c := math.clamp(rl.Vector2Length(p.velocity), 0, 100)
+			rl.DrawCircleV(p.position, p.radius, rl.ColorFromHSV(100 - c, 1, 1))
 			// rl.DrawRectangleV(p.position, p.radius, rl.BLUE)
 		}
 	}
